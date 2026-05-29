@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(mkdir -p /Users/zomai/code/ITMO-Linux/screenshots)",
-      "Bash(mv /Users/zomai/code/ITMO-Linux/browser.png /Users/zomai/code/ITMO-Linux/cert.png /Users/zomai/code/ITMO-Linux/nginx-conf.png /Users/zomai/code/ITMO-Linux/ss.png /Users/zomai/code/ITMO-Linux/screenshots/)"
+      "Bash(mv /Users/zomai/code/ITMO-Linux/browser.png /Users/zomai/code/ITMO-Linux/cert.png /Users/zomai/code/ITMO-Linux/nginx-conf.png /Users/zomai/code/ITMO-Linux/ss.png /Users/zomai/code/ITMO-Linux/screenshots/)",
+      "Bash(find /var/folders /tmp ~/Downloads -name \"*.png\" -newer /Users/zomai/code/ITMO-Linux/screenshots/browser.png 2>/dev/null | head -20)"
     ]
   }
 }

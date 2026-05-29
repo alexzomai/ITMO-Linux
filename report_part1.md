@@ -219,3 +219,132 @@ Wx+q2CI72QTpBEZfq4KZQek+aicA44Pdk4c3QmnRpMCOnD6CRk2WUJJn
 ```
 
 ---
+
+## Задание 2. Сервис получения токена GigaChat и веб-интерфейс
+
+### 2.1 Установка корневого сертификата Минцифры
+
+```bash
+curl -o /usr/local/share/ca-certificates/russian_trusted_root_ca.crt https://gu-st.ru/content/Other/doc/russian_trusted_root_ca.cer
+update-ca-certificates
+```
+
+Проверка подключения к GigaChat API:
+
+```bash
+curl -X POST "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+```
+
+![curl -Iv https://ngw.devices.sberbank.ru:9443](screenshots/b3bde49bb468d400d30e10269ec9eeac40e5129e4f344804a8630a64f7311138.png)
+
+### 2.2 Создание файла с ключом авторизации
+
+Создан файл `/etc/secrets/gigachat.key` с атрибутом 600 и владельцем root:
+
+```bash
+mkdir -p /etc/secrets
+echo "AUTH_KEY=MDE5ZDJh..." > /etc/secrets/gigachat.key
+chmod 600 /etc/secrets/gigachat.key
+```
+
+Создана папка `/usr/local/etc/nginx/` с файлом токена с атрибутом 600:
+
+```bash
+mkdir -p /usr/local/etc/nginx
+```
+
+**Содержимое папки /usr/local/etc/nginx/:**
+
+![Содержимое папки /usr/local/etc/nginx/](screenshots/soderjimoe.png)
+
+### 2.3 Bash скрипт получения токена
+
+Создан файл `/usr/local/bin/token-script-israel.sh` с атрибутом 700:
+
+```bash
+#!/bin/bash
+
+source /etc/secrets/gigachat.key
+
+NGINX_CONF="/usr/local/etc/nginx/israel-gigachat-token.conf"
+TEMP_FILE="/tmp/gigachat-token-israel.json"
+
+curl -s -X POST "https://ngw.devices.sberbank.ru:9443/api/v2/oauth" \
+  -H "Authorization: Basic ${AUTH_KEY}" \
+  -H "RqUID: $(uuidgen)" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "scope=GIGACHAT_API_PERS" \
+  -o "$TEMP_FILE"
+
+TOKEN=$(jq -r '.access_token' "$TEMP_FILE")
+
+echo "set \$gigachat_token \"$TOKEN\";" > "$NGINX_CONF"
+chmod 600 "$NGINX_CONF"
+
+systemctl reload nginx
+```
+
+### 2.4 Systemd unit-файл и таймер
+
+Создан файл `/etc/systemd/system/get-token-israel.service`:
+
+```ini
+[Unit]
+Description=Get GigaChat token for israel
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/token-script-israel.sh
+EnvironmentFile=/etc/secrets/gigachat.key
+```
+
+Создан файл `/etc/systemd/system/get-token-israel.timer`:
+
+```ini
+[Unit]
+Description=Timer for GigaChat token refresh israel
+
+[Timer]
+OnBootSec=2s
+OnUnitActiveSec=20min
+
+[Install]
+WantedBy=timers.target
+```
+
+Включение и запуск:
+
+```bash
+systemctl daemon-reload
+systemctl enable get-token-israel.timer
+systemctl start get-token-israel.timer
+```
+
+![systemctl status get-token-israel](screenshots/status1.png)
+
+![systemctl list-timers](screenshots/status2.png)
+
+### 2.5 Конфигурация nginx — прокси для GigaChat
+
+В SSL блок добавлено включение папки с токеном и location для GigaChat:
+
+```nginx
+include /usr/local/etc/nginx/*.conf;
+
+location /api/ {
+    proxy_pass https://gigachat.devices.sberbank.ru/api/v1/;
+    proxy_set_header Authorization "Bearer $gigachat_token";
+    proxy_set_header Content-Type "application/json";
+    proxy_ssl_server_name on;
+    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+    proxy_ssl_verify on;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+}
+```
+
+### 2.6 HTML страница для GigaChat
+
+Создана страница `/var/www/israel.zomai.ru/gigachat.html` с чат-ботом и выводом списка моделей.
+
+![Браузер — список доступных моделей GigaChat](screenshots/gigachat.png)
